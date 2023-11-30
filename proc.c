@@ -12,6 +12,24 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+/*
+
+There is a data structure which is called Red-Black tree structure.
+Red-Black Tree: 
+  A red-black tree is a binary search tree which has the following red-black properties:
+    Every node is either red or black. Every leaf (NULL) is black.
+    If a node is red, then both its children are black.
+
+*/ 
+
+struct RedBlack_Tree{
+  struct spinlock lock;
+  struct proc *root, *min_vruntime;
+  int period, count ,weight;
+} redBlackTree;
+
+static struct RedBlack_Tree *tasks = &redBlackTree;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -20,10 +38,125 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+static int latency = NPROC / 2, min_gran = 2;
+// redblackinit
+void rbTree_init(struct RedBlack_Tree *rb_tree, char *lock_name) {
+  rb_tree->period = latency;
+  rb_tree->root = 0;
+  rb_tree->min_vruntime = 0;
+  rb_tree->weight = 0;
+  rb_tree->count = 0;
+  initlock(&rb_tree->lock, lock_name);
+}
+// isEmpty
+int isEmpty(struct RedBlack_Tree *tree) { tree->count == 0; }
+
+// isFull
+int isFull(struct RedBlack_Tree *tree) { tree->count == NPROC; }
+
+// calculateWeight
+
+// rotateLeft
+void rotateLeft(struct RedBlack_Tree *tree, struct proc *positonProc) {
+  struct proc *right_proc = positonProc->proc_right;
+  
+  positonProc->proc_right = right_proc->proc_left;
+  if (right_proc->proc_left)
+    right_proc->proc_left->proc_parent = positonProc;
+  right_proc->proc_parent = positonProc->proc_parent;
+
+  if (!positonProc->proc_parent)
+    tree->root = right_proc;
+  else if (positonProc->proc_parent->proc_left)
+    positonProc->proc_parent->proc_left = right_proc;
+  else 
+    positonProc->proc_parent->proc_right = right_proc;
+
+  right_proc->proc_left = positonProc;
+  positonProc->proc_parent = right_proc;
+}
+
+// rotateRight
+void rotateRight(struct RedBlack_Tree *tree, struct proc *positonProc) {
+  struct proc *left_proc = positonProc->proc_left;
+  
+  positonProc->proc_left = left_proc->proc_right;
+  if (left_proc->proc_right)
+    left_proc->proc_right->proc_parent = positonProc;
+  left_proc->proc_parent = positonProc->proc_parent;
+
+  if (!positonProc->proc_parent)
+    tree->root = left_proc;
+  else if (positonProc->proc_parent->proc_right)
+    positonProc->proc_parent->proc_right = left_proc;
+  else 
+    positonProc->proc_parent->proc_left = left_proc;
+
+  left_proc->proc_right = positonProc;
+  positonProc->proc_parent = left_proc;
+}
+
+// retrieveGrandParentProc => retrive the grandparent of the passed process
+struct proc *retrieveGrandParentProc(struct proc* process) {
+  if (process && process->proc_parent)
+    return process->proc_parent->proc_parent;
+  return 0;
+}
+
+// retrieveUncleProc => retrive the uncle of the passed process
+struct proc *retrieveUncleProc(struct proc* process) {
+  struct proc *grandParent = retrieveGrandParentProc(process);
+  if (grandParent) {
+    if(process->proc_parent == grandParent->proc_left) {
+      return grandParent->proc_right;
+    } else {
+      return grandParent->proc_left;
+    }
+  }
+  return 0;
+}
+
+// setMinVruntime
+struct proc *setMinVruntime(struct proc *traversingProcess) {
+  if (!traversingProcess) {
+    if (!traversingProcess->proc_left) 
+      return setMinVruntime(traversingProcess->proc_left);
+    else
+      return traversingProcess;
+  }
+  return 0;
+}
+
+// insert_process
+struct proc *insert_process (
+  struct proc *traversing_process,
+  struct proc *inserting_process) {
+    inserting_process->proc_color = RED;
+    if (!traversing_process)
+      return traversing_process;
+
+    if (traversing_process->virtual_runtime <= inserting_process->virtual_runtime) {
+      inserting_process->proc_parent = traversing_process;
+      traversing_process->proc_right = insert_process(traversing_process->proc_right, inserting_process);
+    } else {
+      inserting_process->proc_parent = traversing_process;
+      traversing_process->proc_left = insert_process(traversing_process->proc_left, inserting_process);
+    }
+
+    return traversing_process;
+}
+
+// insertion_cases
+// insert_process
+// retrieving_cases
+// retrieve_process
+// check_preemption
+
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  rbTree_init(tasks, "tasks");
 }
 
 // Must be called with interrupts disabled

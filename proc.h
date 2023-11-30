@@ -34,6 +34,12 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+
+// we must define an enum to declare each process(node) color whether it's black or red
+enum processColor { RED, BLACK };
+
+
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -49,6 +55,17 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  
+  // ---------------  TODO  --------------- 
+  // each process in red black tree approach needs three pointers to other processes
+  struct proc *proc_left, *proc_right, *proc_parent;
+  enum processColor proc_color;
+  
+  // for implementing CFS scheduler we need some attributes
+  // pick process based on its virtual runtime.
+  // CFS uses red-black tree to choose processes.
+  int virtual_runtime, current_runtime, proc_weight, nice, max_exec_time;
+  // ---------------  End  --------------- 
 };
 
 // Process memory is laid out contiguously, low addresses first:
