@@ -48,52 +48,14 @@ void rbTree_init(struct RedBlack_Tree *rb_tree, char *lock_name) {
   rb_tree->count = 0;
   initlock(&rb_tree->lock, lock_name);
 }
-// isEmpty
-int isEmpty(struct RedBlack_Tree *tree) { tree->count == 0; }
+// is_empty
+int is_empty(struct RedBlack_Tree *tree) { return tree->count == 0; }
 
-// isFull
-int isFull(struct RedBlack_Tree *tree) { tree->count == NPROC; }
+// is_full
+int is_full(struct RedBlack_Tree *tree) { return tree->count == NPROC; }
 
-// calculateWeight
-/*
-  computeProcessWeight(int)
-  parameters: processNiceValue - the nice value of the process
-  returns: an integer that signifies the weight of the process.
-  This function calculates the weight of a process based on its nice value.
-
-  Note: In the Linux kernel, the nice value can range from -20 to 19. However, for our xv6 implementation, we will use the range 0 to 30.
-  The default nice value for a process is set to 0.
-
-  The formula to determine the weight of a process is:
-  1024/(1.25 ^ nice value of process)
-*/
-int
-computeProcessWeight(int processNiceValue){
-
-  // The denominator for the weight calculation formula
-  double weightDenominator = 1.25;
-
-  // If a process has a nice value greater than 30, it is set to 30.
-  // This is to ensure that the priority level is accurately utilized without losing precision due to the fraction being cast to an int.
-  if(processNiceValue > 30){
-	processNiceValue = 30;
-  }
-  
-  // This loop calculates (1.25 ^ nice value) which is used as the denominator in the formula to find the weight. 
-  int counter = 0;
-  while (counter < processNiceValue && processNiceValue > 0){
-  	// Multiply the current denominator by 1.25 for each increment of the nice value
-  	weightDenominator = weightDenominator * 1.25;
-  }
-
-  // The weight of the process is calculated as 1024 divided by the weight denominator.
-  // The result is cast to an int to ensure that the function returns an integer value.
-  return (int) (1024/weightDenominator);
-}
-
-
-// rotateLeft
-void rotateLeft(struct RedBlack_Tree *tree, struct proc *positonProc) {
+// rotate_left
+void rotate_left(struct RedBlack_Tree *tree, struct proc *positonProc) {
   struct proc *right_proc = positonProc->proc_right;
   
   positonProc->proc_right = right_proc->proc_left;
@@ -112,8 +74,8 @@ void rotateLeft(struct RedBlack_Tree *tree, struct proc *positonProc) {
   positonProc->proc_parent = right_proc;
 }
 
-// rotateRight
-void rotateRight(struct RedBlack_Tree *tree, struct proc *positonProc) {
+// rotate_right
+void rotate_right(struct RedBlack_Tree *tree, struct proc *positonProc) {
   struct proc *left_proc = positonProc->proc_left;
   
   positonProc->proc_left = left_proc->proc_right;
@@ -132,16 +94,16 @@ void rotateRight(struct RedBlack_Tree *tree, struct proc *positonProc) {
   positonProc->proc_parent = left_proc;
 }
 
-// retrieveGrandproc_parentroc => retrive the grandparent of the passed process
-struct proc *retrieveGrandproc_parentroc(struct proc* process) {
+// retrieve_grand_parent_process => retrive the grandparent of the passed process
+struct proc *retrieve_grand_parent_process(struct proc* process) {
   if (process && process->proc_parent)
     return process->proc_parent->proc_parent;
   return 0;
 }
 
-// retrieveUncleProc => retrive the uncle of the passed process
-struct proc *retrieveUncleProc(struct proc* process) {
-  struct proc *grandParent = retrieveGrandproc_parentroc(process);
+// retrieve_uncle_process => retrive the uncle of the passed process
+struct proc *retrieve_uncle_process(struct proc* process) {
+  struct proc *grandParent = retrieve_grand_parent_process(process);
   if (grandParent) {
     if(process->proc_parent == grandParent->proc_left) {
       return grandParent->proc_right;
@@ -152,11 +114,11 @@ struct proc *retrieveUncleProc(struct proc* process) {
   return 0;
 }
 
-// setMinVruntime
-struct proc *setMinVruntime(struct proc *traversingProcess) {
+// set_min_vruntime
+struct proc *set_min_vruntime(struct proc *traversingProcess) {
   if (!traversingProcess) {
     if (!traversingProcess->proc_left) 
-      return setMinVruntime(traversingProcess->proc_left);
+      return set_min_vruntime(traversingProcess->proc_left);
     else
       return traversingProcess;
   }
@@ -182,330 +144,220 @@ struct proc *insert_process (
     return traversing_process;
 }
 
-/*
-  handleInsertionCases(struct redblackTree*, struct proc*, int)
-  parameters: tree - the pointer to the red black tree, process - the process in the red black tree, caseNumber - an integer value representing the case to be handled
-  returns: none
-  This function handles different cases that incorporate the properties of a red black tree. It uses the caseNumber to determine which case needs to be handled.
-  cases:
-  -1: if the inserted process is the root
-  -2: if the parent of the inserted process is black
-  -3: if both the parent and uncle processes are red, then repaint them black
-  -4: if the parent is red and the uncle is black, but the inserted process is red and the inserted process is the right child of a parent that is left of the grandparent or vice versa
-  -5: same as case four but the inserted process is the left child of a parent that is left of the grandparent or vice versa
-*/
-void
-handleInsertionCases(struct RedBlack_Tree* tree, struct proc* process, int caseNumber){
-	
-  struct proc* uncleProcess;
-  struct proc* grandparentProcess;
-	
-  switch(caseNumber){
-  case 1:
-	// If the inserted process is the root, color it black
-	if(process->proc_parent == 0)
-		process->proc_color = BLACK;
-	else
-		// If not, handle the next case
-		handleInsertionCases(tree, process, 2);
-	break;
-	
-  case 2:
-	// If the parent of the inserted process is red, handle the next case
-	if(process->proc_parent->proc_color == RED)
-		handleInsertionCases(tree, process, 3);
-	break;
-	
-  case 3:
-	// Retrieve the uncle of the inserted process
-	uncleProcess = retrieveUncleproc(process);
-	
-	// If the uncle exists and is red
-	if(uncleProcess != 0 && uncleProcess->proc_color == RED){
-		// Repaint the parent and uncle black
-		process->proc_parent->proc_color = BLACK;
-		uncleProcess->proc_color = BLACK;
-		// Retrieve the grandparent of the inserted process
-		grandparentProcess = retrieveGrandproc_parentroc(process);
-		// Repaint the grandparent red
-		grandparentProcess->proc_color = RED;
-		// Handle the first case for the grandparent
-		handleInsertionCases(tree, grandparentProcess, 1);
-		grandparentProcess = 0;
-	} else {
-		// If the uncle is black or doesn't exist, handle the next case
-		handleInsertionCases(tree, process,4);
-	}
-	
-	uncleProcess = 0;
-	break;
-  
-  case 4:
-	// Retrieve the grandparent of the inserted process
-	grandparentProcess = retrieveGrandproc_parentroc(process);
-	
-	// If the inserted process is the right child of a parent that is left of the grandparent
-	if(process == process->proc_parent->proc_right && process->proc_parent == grandparentProcess->proc_left){
-		// Rotate the tree to the left at the parent of the inserted process
-		rotateLeft(tree, process->proc_parent);
-		// Update the inserted process to its left child
-		process = process->proc_left;
-	} else if(process == process->proc_parent->proc_left && process->proc_parent == grandparentProcess->proc_right){
-		// Rotate the tree to the right at the parent of the inserted process
-		rotateRight(tree, process->proc_parent);
-		// Update the inserted process to its right child
-		process = process->proc_right;
-	}
-	// Handle the next case
-	handleInsertionCases(tree, process, 5);
-	grandparentProcess = 0;
-	break;
-	
-  case 5:
-    // Retrieve the grandparent of the inserted process
-	grandparentProcess = retrieveGrandproc_parentroc(process);
-	
-	if(grandparentProcess != 0){
-		// Repaint the grandparent red
-		grandparentProcess->proc_color = RED;
-		// Repaint the parent of the inserted process black
-		process->proc_parent->proc_color = BLACK;
-		// If the inserted process is the left child of a parent that is left of the grandparent
-		if(process == process->proc_parent->proc_left && process->proc_parent == grandparentProcess->proc_left){
-			// Rotate the tree to the right at the grandparent
-			rotateRight(tree, grandparentProcess);
-		} else if(process == process->proc_parent->proc_right && process->proc_parent == grandparentProcess->proc_right){
-			// Rotate the tree to the left at the grandparent
-			rotateLeft(tree, grandparentProcess);
-		}
-	}
-	
-	grandparentProcess = 0;
-	break;
-	
-  default:
-	break;
-  }
+// insertion_cases
+void insertion_cases(struct RedBlack_Tree *tree, 
+  struct proc *redblack_proc, int cases) {
+    struct proc *uncle;
+    struct proc *grand_parent;
+    switch (cases)
+    {
+    case 1:
+      if(!redblack_proc->proc_parent) 
+        redblack_proc->proc_color = BLACK;
+      else
+        insertion_cases(tree, redblack_proc, 2);
+      break;
+    
+    case 2:
+      if(!redblack_proc->proc_parent->proc_color == RED) 
+        insertion_cases(tree, redblack_proc, 3);
+      break;
+
+    case 3:
+      uncle = retrieve_uncle_process(redblack_proc);
+      if(uncle && uncle->proc_color == RED) {
+        redblack_proc->proc_parent->proc_color = BLACK;
+        uncle->proc_color = BLACK;
+        grand_parent = retrieve_grand_parent_process(redblack_proc);
+        grand_parent->proc_color = RED;
+        insertion_cases(tree, grand_parent, 1);
+        grand_parent = 0;
+      } else {
+        insertion_cases(tree, redblack_proc, 4);
+      }
+      uncle = 0;
+      break;
+
+    case 4:
+      grand_parent = retrieve_grand_parent_process(redblack_proc);
+      if (redblack_proc == redblack_proc->proc_parent->proc_right &&
+       redblack_proc->proc_parent == grand_parent->proc_left) {
+        rotate_left(tree, grand_parent->proc_parent);
+        redblack_proc = redblack_proc->proc_left;
+       } else if (redblack_proc == redblack_proc->proc_parent->proc_left &&
+        redblack_proc->proc_parent == grand_parent->proc_right) {
+          rotate_right(tree, redblack_proc->proc_parent);
+          redblack_proc = redblack_proc->proc_right;
+       }
+       insertion_cases(tree, redblack_proc, 5);
+       grand_parent = 0;
+       break;
+
+    case 5:
+      grand_parent = retrieve_grand_parent_process(redblack_proc);
+      if (grand_parent) {
+        grand_parent->proc_color = RED;
+        redblack_proc->proc_parent->proc_color = BLACK;
+        if (redblack_proc == redblack_proc->proc_parent->proc_left &&
+         redblack_proc->proc_parent == grand_parent->proc_left) 
+          rotate_right(tree, grand_parent);
+        else if (redblack_proc == redblack_proc->proc_parent->proc_right && 
+         redblack_proc->proc_parent == grand_parent->proc_right)
+          rotate_left(tree, grand_parent);
+      }
+      grand_parent = 0;
+      break;
+    
+    default:
+      break;
+    }
   return;
 }
 
-// insert_process
-void insertProcess(struct RedBlack_Tree* tree, struct proc* p){
-
-  // Acquire the lock to ensure thread-safety
+// calculate_weight
+int calculate_weight(int nice) {
+  double denom = 1.25;
+  nice = nice > 30 ? 30 : nice;
+  int i = 0;
+  while (i < nice && nice > 0)
+    denom = denom * 1.25;
+  
+  return (int) (1024/denom);
+}
+// insert_proc
+void insert_proc(struct RedBlack_Tree *tree, struct proc *process) {
   acquire(&tree->lock);
-
-  // Check if the tree is not full
-  if(!fullTree(tree)){	
-	// Insert the process into the tree
-	tree->root = insertproc(tree->root, p);
-
-	// If the tree was empty, set the parent of the root to null
-	if(tree->count == 0)
-		tree->root->proc_parent = 0;
-
-	// Increment the count of processes in the tree
-    	tree->count += 1;
-	
-	// Calculate the weight of the process based on its nice value
-	p->proc_weight = computeProcessWeight(p->nice);
-
-	// Add the weight of the process to the total weight of the tree
-	tree->weight += p->proc_weight;
-	
-    	// Check for possible violations of Red-Black Tree properties and fix them
-	insertionCases(tree, p, 1);
-		
-	// Find the process with the smallest vRuntime
-	// If there was no insertion of a process that has a smaller minimum virtual runtime then the process that is being pointed by min_vruntime
-	if(tree->min_vruntime == 0 || tree->min_vruntime->proc_left != 0)
-		tree->min_vruntime = setMinimumVRuntimeproc(tree->root);
-	 
-  }	
-
-  // Release the lock
+  if(!is_full(tree)) {
+    tree->root = insert_process(tree->root, process);
+    if (!tree->count) 
+      tree->root->proc_parent = 0;
+    tree->count += 1;
+    process->proc_weight = calculate_weight(process->nice);
+    tree->weight += process->proc_weight;
+    insertion_cases(tree, process, 1);
+    if(!tree->min_vruntime || tree->min_vruntime->proc_left)
+      tree->min_vruntime = set_min_vruntime(tree->root);
+  }
   release(&tree->lock);
 }
 
 // retrieving_cases
-/*
-  handleRetrievalCases(struct RedBlack_Tree*, struct proc*, struct proc*, int)
-  parameters: tree - The red black tree pointer to access and modify the root, parentProcess - the parent of the process, process - the pointer to the process with the smallest virtual Runtime, caseNumber - the case number
-  returns: none
-  This function checks for violations of the red black tree properties when we remove the process out of the tree and fixes them. 
-  cases:
-  -1: We remove the process that needs to be retrieved and ensure that either the process or the process's child is red, but not both of them.
-  -2: If both the process we want to remove is black and it has a child that is black, then we perform recoloring and rotations to ensure red black tree property is met.
-*/
-void handleRetrievalCases(struct RedBlack_Tree* tree, struct proc* parentProcess, struct proc* process, int caseNumber){
-  struct proc* grandparentProcess;
-  struct proc* childProcess;
-  struct proc* siblingProcess;
+void retrieve_cases (struct RedBlack_Tree *tree,
+ struct proc *parent_process, struct proc *process, int cases) {
+  struct proc *parent_prc;
+  struct proc *child_prc;
+  struct proc *sibiling_prc;
+
+  switch (cases)
+  {
+  case 1:
+    parent_prc = parent_process;
+    child_prc = process;
+    if (process == tree->root) {
+      tree->root = child_prc;
+      if(child_prc) {
+        child_prc->proc_parent = 0;
+        child_prc->proc_color = BLACK;
+      }
+    } else if (child_prc && !(process->proc_color == child_prc->proc_color)) {
+      child_prc->proc_parent = parent_prc;
+      parent_prc->proc_left = child_prc;
+      child_prc->proc_color = BLACK;
+    } else if (process->proc_color == RED)
+      parent_prc->proc_left = child_prc;
+    else {
+      if (child_prc)
+        child_prc->proc_parent = parent_prc;
+      parent_prc->proc_left = child_prc;
+      retrieve_cases(tree, parent_prc, child_prc, 2);
+    }
+    process->proc_parent = 0;
+    process->proc_left = 0;
+    process->proc_right = 0;
+    parent_prc = 0;
+    child_prc = 0;
+    break;
+
+  case 2:
+    parent_prc = parent_process;
+    child_prc = process;
+    while(process != tree->root && (!process || process->proc_color == BLACK)) {
+      if ( process == parent_prc->proc_left) {
+        sibiling_prc = parent_prc->proc_right;
+        if (sibiling_prc && sibiling_prc->proc_color == RED) {
+          sibiling_prc->proc_color = BLACK;
+          parent_prc->proc_color = RED;
+          rotate_left(tree, parent_prc);
+          sibiling_prc = parent_prc->proc_right;
+        } 
+        if ((!sibiling_prc->proc_left || sibiling_prc->proc_left->proc_color == BLACK) &&
+            (!sibiling_prc->proc_right || sibiling_prc->proc_right->proc_color == BLACK)) {
+              sibiling_prc->proc_color = RED;
+              process = parent_prc;
+              parent_prc = parent_prc->proc_parent;
+            } else {
+              if (!sibiling_prc->proc_right || sibiling_prc->proc_right->proc_color == BLACK) {
+                if (sibiling_prc->proc_left)
+                  sibiling_prc->proc_left->proc_color = BLACK;
+                sibiling_prc->proc_color = RED;
+                rotate_right(tree, parent_prc);
+                sibiling_prc = parent_prc->proc_right;
+              }
+              sibiling_prc->proc_color = parent_prc->proc_color;
+              parent_prc->proc_color = BLACK;
+              sibiling_prc->proc_right->proc_color = BLACK;
+              rotate_left(tree, parent_prc);
+              process = tree->root;
+            }
+      }
+    }
+    if (process) 
+      process->proc_color = BLACK;
+    break;
   
-  switch(caseNumber){
-	case 1:
-		// Replace smallest virtual Runtime process with its right child 
-		grandparentProcess = parentProcess;
-		childProcess = process->proc_right;
-		
-		// If the process being removed is the root
-		if(process == tree->root){
-			tree->root = childProcess;
-			if(childProcess != 0){
-				childProcess->proc_parent = 0;
-				childProcess->proc_color  = BLACK;
-			}
-		} else if(childProcess != 0 && !(process->proc_color  == childProcess->proc_color )){
-			// Replace current process by its right child
-			childProcess->proc_parent = grandparentProcess;
-			grandparentProcess->proc_left = childProcess;
-			childProcess->proc_color  = BLACK;		
-		} else if(process->proc_color  == RED){		
-			grandparentProcess->proc_left = childProcess;
-		} else {	
-			if(childProcess != 0)
-				childProcess->proc_parent= grandparentProcess;
-			
-			grandparentProcess->proc_left = childProcess;
-			handleRetrievalCases(tree, grandparentProcess, childProcess, 2);
-		}
-		
-		process->proc_parent = 0;
-		process->proc_left = 0;
-		process->proc_right = 0;
-		grandparentProcess = 0;
-		childProcess = 0;
-		break;
-		
-	case 2:
-		// Check if process is not root,i.e parentProcess != 0, and process is black
-		while(process != tree->root && (process == 0 || process->proc_color  == BLACK)){
-			// Obtain sibling process
-			if(process == parentProcess->proc_left){
-				siblingProcess = parentProcess->proc_right;
-				
-				if(siblingProcess != 0 && siblingProcess->proc_color  == RED){
-					siblingProcess->proc_color  = BLACK;
-					parentProcess->proc_color  = RED;
-					rotateLeft(tree, parentProcess);
-					siblingProcess = parentProcess->proc_right;
-				}
-				if((siblingProcess->proc_left == 0 || siblingProcess->proc_left->proc_color  == BLACK) && (siblingProcess->proc_right == 0 || siblingProcess->proc_right->proc_color == BLACK)){
-					siblingProcess->proc_color  = RED;
-					// Change process pointer and parentProcess pointer
-					process = parentProcess;
-					parentProcess = parentProcess->proc_parent;
-				} else {
-					if(siblingProcess->proc_right == 0 || siblingProcess->proc_right->proc_color == BLACK){
-						// Color left child
-						if(siblingProcess->proc_left != 0){
-							siblingProcess->proc_left->proc_color = BLACK;
-						} 
-						siblingProcess->proc_color  = RED;
-						rotateRight(tree, siblingProcess);
-						siblingProcess = parentProcess->proc_right;
-					}
-					
-					siblingProcess->proc_color  = parentProcess->proc_color ;
-					parentProcess->proc_color  = BLACK;
-					siblingProcess->proc_right->proc_color  = BLACK;
-					rotateLeft(tree, parentProcess);
-					process = tree->root;
-				}
-			} 
-		}
-		if(process != 0)
-			process->proc_color = BLACK;
-		
-		break;
-	
-	default:
-		break;
+  default:
+    break;
   }
-  return;
 }
 
 // retrieve_process
-struct proc*
-retrieveProcess(struct RedBlack_Tree* tree){
-  struct proc* foundProcess;	//Process pointer utilized to hold the address of the process with smallest VRuntime 
-
+struct proc *retrieve_process(struct RedBlack_Tree *tree) {
+  struct proc *found_process;
   acquire(&tree->lock);
-  if(!emptyTree(tree)){
-
-	//If the number of processes are greater than the division between latency and minimum granularity
-	//then recalculate the period for the processes
-	//This condition is performed when the scheduler selects the next process to run
-        //The formula can be found in CFS tuning article by Jacek Kobus and Refal Szklarski
-	//In the CFS schduler tuning section:
-	if(tree->count > (latency / min_gran )){
-		tree->period = tree->count * min_gran ;
-	} 
-
-	//retrive the process with the smallest virtual runtime by removing it from the red black tree and returning it
-	foundProcess = tree->min_vruntime;	
-
-	//Determine if the process that is being chosen is runnable at the time of the selection, if it is not, then don't return it.
-	if(foundProcess->state != RUNNABLE){
-  		release(&tree->lock);
-		return 0;
-	}
-
-	retrievingCases(tree, tree->min_vruntime->proc_parent, tree->min_vruntime, 1);
-	tree->count -= 1;
-
-	//Determine new process with the smallest virtual runtime
-	tree->min_vruntime = setMinimumVRuntimeproc(tree->root);
-
-	//Calculate retrieved process's time slice based on formula: period*(process's weight/ red black tree weight)
-	//Where period is the length of the epoch
-	//The formula can be found in CFS tuning article by Jacek Kobus and Refal Szklarski
-	//In the scheduling section:
-	foundProcess->max_exec_time = (tree->period * foundProcess->proc_weight / tree->weight);
-	
-	//Recalculate total weight of red-black tree
-	tree->weight -= foundProcess->proc_weight;
-  } else 
-	foundProcess = 0;
+  if (!is_empty(tree)) {
+    if(tree->count > (latency / min_gran))
+      tree->period = tree->count * min_gran;
+    
+    found_process = tree->min_vruntime;
+    if(found_process->state != RUNNABLE) {
+      release(&tree->lock);
+      return 0;
+    }
+    retrieve_cases(tree, tree->min_vruntime->proc_parent, tree->min_vruntime, 1);
+    tree->min_vruntime = set_min_vruntime(tree->root);
+    found_process->max_exec_time = tree->period * found_process->proc_weight / tree->weight;
+    tree->weight -= found_process->proc_weight;
+  } else {
+    found_process = 0;
+  }
 
   release(&tree->lock);
-  return foundProcess;
+  return found_process;
 }
-/*
-  evaluatePreemption(struct proc*, struct proc*)
-  parameters: currentProcess - the currently running/selected process, minVruntimeProcess - the process with the smallest vruntime in the red black tree
-  return: an integer value that dictates whether preemption should occur
-  This function determines if the current process should be preempted.
-  Preemption Cases:
-  1- If the current running process virtual runtime is greater than the smallest virtual runtime
-  2- If current running process current_runtime has exceeded the maximum execution time
-  3- Allow the current running process to continue running until preemption should occur
-*/
-int evaluatePreemption(struct proc* currentProcess, struct proc* minVruntimeProcess){
 
-  // Use an integer variable to compare current runtime with the minimum granularity
-  int processRuntime = currentProcess->current_runtime;
-  
-  // Determine if the currently running process has exceeded its time slice.
-  if((processRuntime >= currentProcess->max_exec_time) && (processRuntime >= min_gran )){
-  	return 1;
-  }
-
-  // If the virtual runtime of the currently running process is greater than the smallest process, 
-  // then context switching should occur
-  if(minVruntimeProcess != 0 && minVruntimeProcess->state == RUNNABLE && currentProcess->virtual_runtime > minVruntimeProcess->virtual_runtime){
-	
-	// Allow preemption if the process has ran for at least the min_gran .
-    // Due to the calls of checking for preemption, there needs to be made a distinction between when the preemption function
-	// is called after a process has just be selected by the cfs scheduler and when a process has been currently running.
-	if((processRuntime != 0) && (processRuntime >= min_gran )){
-		return 1;
-  	} else if(processRuntime == 0){
-		return 1;
-    }
-  }
-
-  // No preemption should occur
+// check_preemption
+int check_preemption(struct proc *current, struct proc *min_vruntime) {
+  int proc_runtime = current->current_runtime;
+  if((proc_runtime >= current->max_exec_time) && (proc_runtime >= min_gran))
+    return 1;
+  if (min_vruntime && min_vruntime->state == RUNNABLE &&
+   current->virtual_runtime > min_vruntime->virtual_runtime)
+   {
+    if (proc_runtime && (proc_runtime >= min_gran))
+      return 1;
+   } else if( !proc_runtime ) {
+    return 1;
+   }
   return 0;
 }
 
@@ -515,7 +367,6 @@ pinit(void)
   initlock(&ptable.lock, "ptable");
   rbTree_init(tasks, "tasks");
 }
-
 // Must be called with interrupts disabled
 int
 cpuid() {
@@ -602,6 +453,15 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // CFS (red-black tree)
+  p->proc_left = 0;
+  p->proc_right = 0;
+  p->proc_parent = 0;
+  p->virtual_runtime = 0;
+  p->current_runtime = 0;
+  p->max_exec_time = 0;
+  p->nice = 0;
+
   return p;
 }
 
@@ -631,16 +491,10 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
-  // this assignment to p->state lets other cores
-  // run this process. the acquire forces the above
-  // writes to be visible, and the lock is also needed
-  // because the assignment might not be atomic.
-  acquire(&ptable.lock);
-
   p->state = RUNNABLE;
 
-  release(&ptable.lock);
+  // Insert allocated process into the red black tree, which will become runnable. 
+  insert_proc(tasks, p);
 }
 
 // Grow current process's memory by n bytes.
@@ -707,6 +561,9 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
+
+  // Insert allocated process into the red black tree, which will become runnable. 
+  insert_proc(tasks, np);
 
   return pid;
 }
@@ -822,23 +679,21 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+    p = retrieve_process(tasks);
+    while (p) {
+      if (p->state == RUNNABLE) {
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+      }
+      p = retrieve_process(tasks);
     }
     release(&ptable.lock);
 
@@ -875,9 +730,15 @@ sched(void)
 void
 yield(void)
 {
+  struct proc *curproc = myproc();
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
-  sched();
+  if(check_preemption(curproc, tasks->min_vruntime)) {
+    curproc->state = RUNNABLE;
+    curproc->virtual_runtime += curproc->current_runtime;
+    curproc->current_runtime = 0;
+    insert_proc(tasks, curproc);
+    sched();
+  }
   release(&ptable.lock);
 }
 
@@ -950,8 +811,12 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      p->virtual_runtime += p->current_runtime;
+      p->current_runtime = 0;
+      insert_proc(tasks, p);  
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -976,8 +841,12 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
         p->state = RUNNABLE;
+        p->virtual_runtime += p->current_runtime;
+        p->current_runtime = 0;
+        insert_proc(tasks, p);  
+      }
       release(&ptable.lock);
       return 0;
     }
