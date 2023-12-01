@@ -1,51 +1,77 @@
-NOTE: we have stopped maintaining the x86 version of xv6, and switched
-our efforts to the RISC-V version
-(https://github.com/mit-pdos/xv6-riscv.git)
+# xv6 CFS Scheduler with Red-Black Tree
 
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern x86-based multiprocessor using ANSI C.
+## Overview
 
-ACKNOWLEDGMENTS
+The xv6 operating system is a modern re-implementation of Sixth Edition Unix. This repository includes an implementation of the Completely Fair Scheduler (CFS) using a Red-Black Tree data structure to manage processes in a fair, efficient manner. The CFS aims to allocate CPU time among processes in such a way that each process gets a fair share of the CPU.
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)). See also https://pdos.csail.mit.edu/6.828/, which
-provides pointers to on-line resources for v6.
+## Red-Black Tree Methods and Preemption Check
 
-xv6 borrows code from the following sources:
-    JOS (asm.h, elf.h, mmu.h, bootasm.S, ide.c, console.c, and others)
-    Plan 9 (entryother.S, mp.h, mp.c, lapic.c)
-    FreeBSD (ioapic.c)
-    NetBSD (console.c)
+### Red-Black Tree Operations
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+- **Initialization (`rbTree_init`)**: Sets up the red-black tree with initial values, including latency and root pointers.
+- **Insertion (`insert_process`)**: Adds a new process to the tree, placing it according to its virtual runtime.
+- **Rotation Operations (`rotate_left`, `rotate_right`)**: Balance the tree by performing left and right rotations on nodes.
+- **Retrieval Operations**: Include finding the next process to run (`retrieve_process`) and locating relatives like the grandparent or uncle of a node.
+- **Deletion and Replacement Cases**: Handle the removal of a process from the tree and ensure the tree remains balanced after the operation.
 
-We are also grateful for the bug reports and patches contributed by Silas
-Boyd-Wickizer, Anton Burtsev, Cody Cutler, Mike CAT, Tej Chajed, eyalz800,
-Nelson Elhage, Saar Ettinger, Alice Ferrazzi, Nathaniel Filardo, Peter
-Froehlich, Yakir Goaron,Shivam Handa, Bryan Henry, Jim Huang, Alexander
-Kapshuk, Anders Kaseorg, kehao95, Wolfgang Keller, Eddie Kohler, Austin
-Liew, Imbar Marinescu, Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi
-Merimovich, Mark Morrissey, mtasm, Joel Nider, Greg Price, Ayan Shafqat,
-Eldar Sehayek, Yongming Shen, Cam Tenny, tyfkda, Rafael Ubal, Warren
-Toomey, Stephen Tu, Pablo Ventura, Xi Wang, Keiichi Watanabe, Nicolas
-Wolovick, wxdao, Grant Wu, Jindong Zhang, Icenowy Zheng, and Zou Chang Wei.
+### Preemption Check (`check_preemption`)
 
-The code in the files that constitute xv6 is
-Copyright 2006-2018 Frans Kaashoek, Robert Morris, and Russ Cox.
+The `check_preemption` function evaluates whether the currently running process should be preempted. It considers if the process has exhausted its allotted timeslice or if there is a more suitable candidate (a process with a smaller virtual runtime) ready to run.
 
-ERROR REPORTS
+## Formula Explanation
 
-We don't process error reports (see note on top of this file).
+The formulas used in CFS for time slice calculation and virtual runtime updating are based on process weight, which is derived from the nice value of the process:
 
-BUILDING AND RUNNING XV6
+- **Time Slice Calculation**: Determines the quantum of time each process gets to run on the CPU.
+- **Virtual Runtime Update**: Reflects the total time a process has been running, adjusted for its weight, to ensure fairness.
 
-To build xv6 on an x86 ELF machine (like Linux or FreeBSD), run
-"make". On non-x86 or non-ELF machines (like OS X, even on x86), you
-will need to install a cross-compiler gcc suite capable of producing
-x86 ELF binaries (see https://pdos.csail.mit.edu/6.828/).
-Then run "make TOOLPREFIX=i386-jos-elf-". Now install the QEMU PC
-simulator and run "make qemu".
+## Code Explanation
+
+In `proc.h`, several fields were added to the `proc` structure to support CFS:
+
+- **Process Tree Pointers**: `proc_left`, `proc_right`, and `proc_parent` for the Red-Black Tree structure.
+- **Process Color**: `proc_color` indicating if the node is RED or BLACK.
+- **CFS Attributes**: `virtual_runtime`, `current_runtime`, `proc_weight`, `nice`, and `max_exec_time` are used to calculate the process's share of CPU time.
+
+## Formula Explanation for CFS Scheduling
+
+In the Completely Fair Scheduler (CFS), the time slice or quantum for each process is determined using the formula:
+
+\[ \text{timeslice}_k = \frac{\text{weight}_k}{\sum_{i=0}^{n-1}\text{weight}_i} \times \text{sched\_latency} \]
+
+Where:
+- \( \text{timeslice}_k \) is the time slice for process \( k \).
+- \( \text{weight}_k \) is the weight of process \( k \), which is inversely proportional to its nice value.
+- \( \text{sched\_latency} \) is the targeted scheduling period or latency over which every runnable task should run at least once.
+- \( \sum_{i=0}^{n-1}\text{weight}_i \) is the sum of weights of all runnable processes.
+
+Virtual runtime is updated using the formula:
+
+\[ \text{vruntime}_i = \text{vruntime}_i + \frac{\text{weight}_0}{\text{weight}_i} \times \text{runtime}_i \]
+
+Where:
+- \( \text{vruntime}_i \) is the virtual runtime of process \( i \).
+- \( \text{runtime}_i \) is the actual runtime of the process \( i \).
+
+The scheduler selects the process with the smallest virtual runtime to run next.
+
+## Test Programs and Visualization
+
+Test programs are provided to demonstrate the effectiveness and fairness of the CFS scheduler. These can be visualized using Gantt charts, which are not included here but can be created using the Mermaid.js syntax as mentioned above.
+
+```mermaid
+gantt
+    title A Gantt Diagram for CFS Scheduling
+    dateFormat  HH-mm-ss
+    section Process A
+    Running        :a1, 12-10-00, 2s
+    Waiting        :after a1  , 3s
+    Running        :12-10-05, 2s
+    section Process B
+    Waiting        :12-10-00, 5s
+    Running        :b1, after a1, 2s
+```
+
+This Gantt chart would illustrate that Process A runs for 2 seconds, then waits for 3 seconds while Process B runs for 2 seconds, after initially waiting for 5 seconds.
+
+For a full visualization, these charts can be rendered in environments supporting Mermaid.js, allowing one to see the order of execution and time slices for each process in the system.
