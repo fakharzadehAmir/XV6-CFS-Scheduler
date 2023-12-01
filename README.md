@@ -18,13 +18,6 @@ The xv6 operating system is a modern re-implementation of Sixth Edition Unix. Th
 
 The `check_preemption` function evaluates whether the currently running process should be preempted. It considers if the process has exhausted its allotted timeslice or if there is a more suitable candidate (a process with a smaller virtual runtime) ready to run.
 
-## Formula Explanation
-
-The formulas used in CFS for time slice calculation and virtual runtime updating are based on process weight, which is derived from the nice value of the process:
-
-- **Time Slice Calculation**: Determines the quantum of time each process gets to run on the CPU.
-- **Virtual Runtime Update**: Reflects the total time a process has been running, adjusted for its weight, to ensure fairness.
-
 ## Code Explanation
 
 In `proc.h`, several fields were added to the `proc` structure to support CFS:
@@ -37,21 +30,21 @@ In `proc.h`, several fields were added to the `proc` structure to support CFS:
 
 In the Completely Fair Scheduler (CFS), the time slice or quantum for each process is determined using the formula:
 
-\[ \text{timeslice}_k = \frac{\text{weight}_k}{\sum_{i=0}^{n-1}\text{weight}_i} \times \text{sched\_latency} \]
+$\text{timeslice}_k = \frac{\text{weight}_k}{\sum_{i=0}^{n-1}\text{weight}_i} \times \text{sched\_latency}$
 
 Where:
-- \( \text{timeslice}_k \) is the time slice for process \( k \).
-- \( \text{weight}_k \) is the weight of process \( k \), which is inversely proportional to its nice value.
-- \( \text{sched\_latency} \) is the targeted scheduling period or latency over which every runnable task should run at least once.
-- \( \sum_{i=0}^{n-1}\text{weight}_i \) is the sum of weights of all runnable processes.
+- \( $\text{timeslice}_k$ \) is the time slice for process \( k \).
+- \( $\text{weight}_k$ \) is the weight of process \( k \), which is inversely proportional to its nice value.
+- \( $\text{sched\_latency}$ \) is the targeted scheduling period or latency over which every runnable task should run at least once.
+- \( $\sum_{i=0}^{n-1}\text{weight}_i$ \) is the sum of weights of all runnable processes.
 
 Virtual runtime is updated using the formula:
 
-\[ \text{vruntime}_i = \text{vruntime}_i + \frac{\text{weight}_0}{\text{weight}_i} \times \text{runtime}_i \]
+$\text{vruntime}_i = \text{vruntime}_i + \frac{\text{weight}_0}{\text{weight}_i} \times \text{runtime}_i$
 
 Where:
-- \( \text{vruntime}_i \) is the virtual runtime of process \( i \).
-- \( \text{runtime}_i \) is the actual runtime of the process \( i \).
+- \( $\text{vruntime}_i$ \) is the virtual runtime of process \( i \).
+- \( $\text{runtime}_i$ \) is the actual runtime of the process \( i \).
 
 The scheduler selects the process with the smallest virtual runtime to run next.
 
